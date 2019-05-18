@@ -1,22 +1,51 @@
+import os
 import sys
 import types
+from pathlib import Path
 from importlib.util import spec_from_file_location, module_from_spec
 
 
-def find_dependencies(entrypoint):
-    # TODO: configure
-    sys.path.append('')
+class Dependency:
+
+    def __init__(self, path: Path, is_child: bool):
+        self.path = path
+        self.is_child = is_child
+
+    def __repr__(self):
+        return str(self.__dict__.copy())
+
+
+def convert(deps):
+    cwd = os.getcwd()
+    res = []
+    for dep in deps:
+        is_child = dep.find(cwd) == 0
+        res.append(Dependency(Path(dep), is_child))
+
+    return res
+
+
+def find_dependencies(entrypoint: str):
+    entrypoint = Path(entrypoint).absolute()
+    sys.path.append(str(entrypoint.parent))
 
     spec = spec_from_file_location('', entrypoint)
     module = module_from_spec(spec)
     spec.loader.exec_module(module)
 
+    deps = dfs(module)
+    deps = convert(deps)
+
+    return deps
+
+
+def dfs(module):
     visited = set()
-    dfs(module, visited)
+    _dfs(module, visited)
     return list(visited)
 
 
-def dfs(module, visited: set):
+def _dfs(module, visited: set):
     if not isinstance(module, types.ModuleType):
         return
 
@@ -28,4 +57,4 @@ def dfs(module, visited: set):
 
     visited |= {module.__file__}
     for v in module.__dict__.values():
-        dfs(v, visited)
+        _dfs(v, visited)
